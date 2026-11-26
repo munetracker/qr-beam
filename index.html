@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QR Beam — Offline File Transfer</title><link rel="icon" href="data:,">
+<title>1.00 - QR Beam — Offline File Transfer</title><link rel="icon" href="data:,">
 <style>
 :root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--muted:#94a3b8;--accent:#65d6ad;--line:#26344b}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#1b2941,var(--bg) 65%);color:#eef3ff;font:16px system-ui,Segoe UI,Arial;min-height:100vh}
@@ -8,13 +8,13 @@ main{max-width:920px;margin:auto;padding:24px 16px}header{text-align:center;marg
 .tabs{display:flex;gap:8px;margin-bottom:18px}.tab{flex:1;padding:12px;border:1px solid var(--line);border-radius:12px;background:#18233a;color:inherit;font-weight:700;cursor:pointer}.tab.active{background:var(--accent);color:#07131a}
 button{background:var(--accent);color:#06131a;border:0;padding:12px 16px;border-radius:12px;font-weight:800;cursor:pointer}button.secondary{background:#26344b;color:#eef3ff}button:disabled{opacity:.5;cursor:default}
 input[type=file]{width:100%;padding:12px;background:#0c1425;border:1px solid var(--line);border-radius:12px}
-.flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.qr{width:260px;height:260px;background:#fff;border-radius:12px;padding:8px;margin:12px auto;display:block}.center{text-align:center}.progress{height:8px;background:#26344b;border-radius:20px;overflow:hidden}.progress i{display:block;height:100%;background:var(--accent);width:0}.notice{padding:12px;background:#17253b;border-radius:12px;color:#d8e7ff}.hidden{display:none!important}.list{display:grid;gap:10px}.file{background:#0c1425;padding:12px;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.small{font-size:13px;color:var(--muted)}footer{text-align:center;color:var(--muted);font-size:13px;margin:28px}
+.flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.qr{width:min(82vw,480px);height:min(82vw,480px);max-width:480px;max-height:480px;background:#fff;border-radius:16px;padding:10px;margin:18px auto;display:block;box-shadow:0 0 28px #65d6ad22}.center{text-align:center}.progress{height:8px;background:#26344b;border-radius:20px;overflow:hidden}.progress i{display:block;height:100%;background:var(--accent);width:0}.notice{padding:12px;background:#17253b;border-radius:12px;color:#d8e7ff}.hidden{display:none!important}.list{display:grid;gap:10px}.file{background:#0c1425;padding:12px;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.small{font-size:13px;color:var(--muted)}footer{text-align:center;color:var(--muted);font-size:13px;margin:28px}
 </style></head><body><main>
 <header><h1>📡 QR Beam</h1><p>Transfer files using QR codes — no internet required</p></header>
 <div class="panel"><div class="tabs"><button class="tab active" id="sendTab">Send</button><button class="tab" id="receiveTab">Receive</button></div>
 <section id="send"><h2>Send a file through animated QR</h2><p class="muted">Choose a file, then point the receiver's camera at the animated QR. Keep this screen visible.</p>
 <input id="file" type="file"><div class="flex" style="margin-top:14px"><button id="start">Start QR transmission</button><button class="secondary" id="stop" disabled>Stop</button></div>
-<div class="center"><canvas id="qr" class="qr" width="256" height="256"></canvas><div id="sendStatus" class="muted">Choose a file to begin.</div><div class="progress" style="margin:12px 0"><i id="sendProgress"></i></div></div></section>
+<div class="center"><canvas id="qr" class="qr" width="480" height="480"></canvas><div id="sendStatus" class="muted">Choose a file to begin.</div><div class="progress" style="margin:12px 0"><i id="sendProgress"></i></div></div></section>
 <section id="receive" class="hidden"><h2>Receive a file</h2><p class="muted">Allow camera access and scan the sender's animated QR frames.</p><video id="video" autoplay playsinline style="width:100%;max-width:480px;background:#000;border-radius:16px;display:block;margin:auto"></video><div class="flex" style="justify-content:center;margin:12px"><button id="camera">Start camera</button><button class="secondary" id="camStop">Stop camera</button></div><div class="notice" id="receiveStatus">Camera scanner is not started.</div><div class="progress" style="margin:12px 0"><i id="receiveProgress"></i></div><div id="received"></div></section>
 </div>
 <div class="panel"><h3>How it works</h3><ol><li>Both devices open this app (sender and receiver copies).</li><li>Sender chooses a file and starts animated QR transmission.</li><li>Receiver starts the camera and scans the frames.</li><li>Once enough frames are collected, the file is reconstructed and downloaded.</li></ol><p class="notice"><b>Prototype limitation:</b> This starter implements a basic QR-frame transport for small files, not Decimen's advanced fountain-code system. Camera scanning and frame capture depend on browser support. For reliable large-file transfer, a fountain-code encoder/decoder and robust frame protocol would be needed.</p></div>
@@ -27,7 +27,7 @@ function tab(which){$('send').classList.toggle('hidden',which!=='send');$('recei
 $('sendTab').onclick=()=>tab('send');$('receiveTab').onclick=()=>tab('receive');
 function drawQR(s){
   if(!window.QRious){$('sendStatus').textContent='QR library failed to load. Check internet connection and reload.';return}
-  new QRious({element:$('qr'),value:s,size:256,level:'L',padding:1});
+  new QRious({element:$('qr'),value:s,size:480,level:'L',padding:1});
 }
 $('start').onclick=async()=>{let f=$('file').files[0];if(!f)return alert('Choose a file first');if(f.size>2*1024*1024) return alert('Prototype currently limited to 2 MB. A production Decimen-style fountain-code implementation is needed for larger files.');$('start').disabled=true;$('stop').disabled=false;
 let bytes=new Uint8Array(await f.arrayBuffer());let chunkSize=700;let chunks=[];for(let i=0;i<bytes.length;i+=chunkSize)chunks.push(bytes.slice(i,i+chunkSize));
