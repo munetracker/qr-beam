@@ -19,8 +19,8 @@ input[type=file]{width:100%;padding:12px;background:#0c1425;border:1px solid var
 </div>
 <div class="panel"><h3>How it works</h3><ol><li>Both devices open this app (sender and receiver copies).</li><li>Sender chooses a file and starts animated QR transmission.</li><li>Receiver starts the camera and scans the frames.</li><li>Once enough frames are collected, the file is reconstructed and downloaded.</li></ol><p class="notice"><b>Prototype limitation:</b> This starter implements a basic QR-frame transport for small files, not Decimen's advanced fountain-code system. Camera scanning and frame capture depend on browser support. For reliable large-file transfer, a fountain-code encoder/decoder and robust frame protocol would be needed.</p></div>
 <footer>QR Beam · Local optical transfer prototype</footer></main>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
 <script>
 const $=id=>document.getElementById(id);let stream=null,txTimer=null,frames=[],txIndex=0,rx={},scanTimer=null;
 function tab(which){$('send').classList.toggle('hidden',which!=='send');$('receive').classList.toggle('hidden',which!=='receive');$('sendTab').classList.toggle('active',which==='send');$('receiveTab').classList.toggle('active',which==='receive')}
@@ -28,7 +28,7 @@ $('sendTab').onclick=()=>tab('send');$('receiveTab').onclick=()=>tab('receive');
 function drawQR(s){QRCode.toCanvas($('qr'),s,{width:256,margin:1,errorCorrectionLevel:'L'},e=>{if(e)console.error(e)})}
 $('start').onclick=async()=>{let f=$('file').files[0];if(!f)return alert('Choose a file first');if(f.size>2*1024*1024) return alert('Prototype currently limited to 2 MB. A production Decimen-style fountain-code implementation is needed for larger files.');$('start').disabled=true;$('stop').disabled=false;
 let bytes=new Uint8Array(await f.arrayBuffer());let chunkSize=900;let chunks=[];for(let i=0;i<bytes.length;i+=chunkSize)chunks.push(bytes.slice(i,i+chunkSize));
-let b64=chunks.map(c=>btoa(String.fromCharCode(...c)));let transferId='qrb'+Date.now();frames=[{t:'meta',id:transferId,name:f.name,type:f.type||'application/octet-stream',size:f.size,total:b64.length},...b64.map((data,i)=>({t:'chunk',id:transferId,i,total:b64.length,data}))];txIndex=0;
+let b64=chunks.map(c=>btoa(String.fromCharCode(...c)));frames=[{t:'meta',id:'qrb'+Date.now(),name:f.name,type:f.type||'application/octet-stream',size:f.size,total:b64.length},...b64.map((data,i)=>({t:'chunk',id:'qrb'+Date.now(),i,total:b64.length,data}))];txIndex=0;
 $('sendStatus').textContent='Sending '+f.name+' · '+frames.length+' frames';txTimer=setInterval(async()=>{if(txIndex>=frames.length)txIndex=0;let fr=frames[txIndex];drawQR(JSON.stringify(fr));$('sendProgress').style.width=Math.round(txIndex/frames.length*100)+'%';$('sendStatus').textContent=`Frame ${txIndex+1} / ${frames.length} · cycle repeats`;txIndex++},180);};
 $('stop').onclick=()=>{clearInterval(txTimer);txTimer=null;$('start').disabled=false;$('stop').disabled=true;$('sendStatus').textContent='Transmission stopped';drawQR('QR BEAM')};
 $('camera').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('video').srcObject=stream;$('receiveStatus').textContent='Scanning…';let c=document.createElement('canvas'),ctx=c.getContext('2d');scanTimer=setInterval(()=>{let v=$('video');if(v.readyState!==v.HAVE_ENOUGH_DATA)return;c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0);let im=ctx.getImageData(0,0,c.width,c.height),code=jsQR(im.data,im.width,im.height);if(code){try{let o=JSON.parse(code.data);handle(o)}catch(e){}}},100)}catch(e){$('receiveStatus').textContent='Camera error: '+e.message}};
