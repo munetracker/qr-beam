@@ -20,7 +20,7 @@ input[type=file]{width:100%;padding:12px;background:#0c1425;border:1px solid var
 <div class="panel"><h3>How it works</h3><ol><li>Both devices open this app (sender and receiver copies).</li><li>Sender chooses a file and starts animated QR transmission.</li><li>Receiver starts the camera and scans the frames.</li><li>Once enough frames are collected, the file is reconstructed and downloaded.</li></ol><p class="notice"><b>Prototype limitation:</b> This starter implements a basic QR-frame transport for small files, not Decimen's advanced fountain-code system. Camera scanning and frame capture depend on browser support. For reliable large-file transfer, a fountain-code encoder/decoder and robust frame protocol would be needed.</p></div>
 <footer>QR Beam · Local optical transfer prototype</footer></main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="./jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);let stream=null,txTimer=null,frames=[],txIndex=0,rx={},scanTimer=null;
 function tab(which){$('send').classList.toggle('hidden',which!=='send');$('receive').classList.toggle('hidden',which!=='receive');$('sendTab').classList.toggle('active',which==='send');$('receiveTab').classList.toggle('active',which==='receive')}
