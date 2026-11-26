@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QR Beam — Offline File Transfer</title>
+<title>QR Beam — Offline File Transfer</title><link rel="icon" href="data:,">
 <style>
 :root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--muted:#94a3b8;--accent:#65d6ad;--line:#26344b}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#1b2941,var(--bg) 65%);color:#eef3ff;font:16px system-ui,Segoe UI,Arial;min-height:100vh}
@@ -19,21 +19,39 @@ input[type=file]{width:100%;padding:12px;background:#0c1425;border:1px solid var
 </div>
 <div class="panel"><h3>How it works</h3><ol><li>Both devices open this app (sender and receiver copies).</li><li>Sender chooses a file and starts animated QR transmission.</li><li>Receiver starts the camera and scans the frames.</li><li>Once enough frames are collected, the file is reconstructed and downloaded.</li></ol><p class="notice"><b>Prototype limitation:</b> This starter implements a basic QR-frame transport for small files, not Decimen's advanced fountain-code system. Camera scanning and frame capture depend on browser support. For reliable large-file transfer, a fountain-code encoder/decoder and robust frame protocol would be needed.</p></div>
 <footer>QR Beam · Local optical transfer prototype</footer></main>
-<script src="https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);let stream=null,txTimer=null,frames=[],txIndex=0,rx={},scanTimer=null;
 function tab(which){$('send').classList.toggle('hidden',which!=='send');$('receive').classList.toggle('hidden',which!=='receive');$('sendTab').classList.toggle('active',which==='send');$('receiveTab').classList.toggle('active',which==='receive')}
 $('sendTab').onclick=()=>tab('send');$('receiveTab').onclick=()=>tab('receive');
-function drawQR(s){QRCode.toCanvas($('qr'),s,{width:256,margin:1,errorCorrectionLevel:'L'},e=>{if(e)console.error(e)})}
+function drawQR(s){
+  if(!window.QRious){$('sendStatus').textContent='QR library failed to load. Check internet connection and reload.';return}
+  new QRious({element:$('qr'),value:s,size:256,level:'L',padding:1});
+}
 $('start').onclick=async()=>{let f=$('file').files[0];if(!f)return alert('Choose a file first');if(f.size>2*1024*1024) return alert('Prototype currently limited to 2 MB. A production Decimen-style fountain-code implementation is needed for larger files.');$('start').disabled=true;$('stop').disabled=false;
-let bytes=new Uint8Array(await f.arrayBuffer());let chunkSize=900;let chunks=[];for(let i=0;i<bytes.length;i+=chunkSize)chunks.push(bytes.slice(i,i+chunkSize));
-let b64=chunks.map(c=>btoa(String.fromCharCode(...c)));frames=[{t:'meta',id:'qrb'+Date.now(),name:f.name,type:f.type||'application/octet-stream',size:f.size,total:b64.length},...b64.map((data,i)=>({t:'chunk',id:'qrb'+Date.now(),i,total:b64.length,data}))];txIndex=0;
+let bytes=new Uint8Array(await f.arrayBuffer());let chunkSize=700;let chunks=[];for(let i=0;i<bytes.length;i+=chunkSize)chunks.push(bytes.slice(i,i+chunkSize));
+let b64=chunks.map(c=>btoa(String.fromCharCode(...c)));let transferId='qrb'+Date.now();
+frames=[{t:'meta',id:transferId,name:f.name,type:f.type||'application/octet-stream',size:f.size,total:b64.length},...b64.map((data,i)=>({t:'chunk',id:transferId,i,total:b64.length,data}))];txIndex=0;
 $('sendStatus').textContent='Sending '+f.name+' · '+frames.length+' frames';txTimer=setInterval(async()=>{if(txIndex>=frames.length)txIndex=0;let fr=frames[txIndex];drawQR(JSON.stringify(fr));$('sendProgress').style.width=Math.round(txIndex/frames.length*100)+'%';$('sendStatus').textContent=`Frame ${txIndex+1} / ${frames.length} · cycle repeats`;txIndex++},180);};
 $('stop').onclick=()=>{clearInterval(txTimer);txTimer=null;$('start').disabled=false;$('stop').disabled=true;$('sendStatus').textContent='Transmission stopped';drawQR('QR BEAM')};
 $('camera').onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('video').srcObject=stream;$('receiveStatus').textContent='Scanning…';let c=document.createElement('canvas'),ctx=c.getContext('2d');scanTimer=setInterval(()=>{let v=$('video');if(v.readyState!==v.HAVE_ENOUGH_DATA)return;c.width=v.videoWidth;c.height=v.videoHeight;ctx.drawImage(v,0,0);let im=ctx.getImageData(0,0,c.width,c.height),code=jsQR(im.data,im.width,im.height);if(code){try{let o=JSON.parse(code.data);handle(o)}catch(e){}}},100)}catch(e){$('receiveStatus').textContent='Camera error: '+e.message}};
 $('camStop').onclick=()=>{clearInterval(scanTimer);if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;$('video').srcObject=null;$('receiveStatus').textContent='Camera stopped'};
-function handle(o){if(o.t==='meta'){rx[o.id]={meta:o,chunks:{}};$('receiveStatus').textContent='Receiving '+o.name+' · '+o.total+' chunks';return}if(o.t==='chunk'){let r=rx[o.id];if(!r){r={meta:null,chunks:{}};rx[o.id]=r}r.chunks[o.i]=o.data;let count=Object.keys(r.chunks).length;$('receiveProgress').style.width=Math.min(100,count/o.total*100)+'%';$('receiveStatus').textContent=`Collected ${count} / ${o.total} chunks`;if(r.meta&&count>=r.meta.total)finish(o.id)}}
-function finish(id){let r=rx[id],m=r.meta;if(!m||r.done)return;r.done=true;let parts=[];for(let i=0;i<m.total;i++){let s=r.chunks[i];if(!s)return;let raw=atob(s),a=new Uint8Array(raw.length);for(let j=0;j<raw.length;j++)a[j]=raw.charCodeAt(j);parts.push(a)}let blob=new Blob(parts,{type:m.type});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=m.name;a.textContent='Download reconstructed file: '+m.name;a.style.display='block';a.style.padding='12px';$('received').append(a);$('receiveStatus').textContent='File reconstructed!';}
+function handle(o){
+ if(o.t==='meta'){
+   let r=rx[o.id]||{meta:null,chunks:{},done:false};r.meta=o;rx[o.id]=r;
+   $('receiveStatus').textContent='Receiving '+o.name+' · '+o.total+' chunks';
+   let count=Object.keys(r.chunks).length;$('receiveProgress').style.width=Math.min(100,count/o.total*100)+'%';
+   if(count>=o.total)finish(o.id);return;
+ }
+ if(o.t==='chunk'){
+   let r=rx[o.id]||{meta:null,chunks:{},done:false};rx[o.id]=r;r.chunks[o.i]=o.data;
+   let count=Object.keys(r.chunks).length,total=o.total;
+   $('receiveProgress').style.width=Math.min(100,count/total*100)+'%';
+   $('receiveStatus').textContent=`Collected ${count} / ${total} chunks`;
+   if(r.meta&&count>=r.meta.total)finish(o.id);
+ }
+}
+function finish(id){let r=rx[id],m=r.meta;if(!m||r.done)return;let parts=[];for(let i=0;i<m.total;i++){let s=r.chunks[i];if(!s)return;let raw=atob(s),a=new Uint8Array(raw.length);for(let j=0;j<raw.length;j++)a[j]=raw.charCodeAt(j);parts.push(a)}let blob=new Blob(parts,{type:m.type});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=m.name;a.textContent='Download reconstructed file: '+m.name;a.style.display='block';a.style.padding='12px';$('received').append(a);$('receiveStatus').textContent='File reconstructed!';}
 drawQR('QR BEAM');
 </script></body></html>
